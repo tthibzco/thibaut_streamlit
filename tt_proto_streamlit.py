@@ -142,7 +142,7 @@ def understand_problem(whole_convo, model_user, model_parsing):
         
             if are_all_properties_populated(st.session_state.user_problem):
                 st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1]=True
-                resp1 = f"I understand that " + problem_summary(st.session_state.user_problem) + f"Is this correct?"
+                resp1 = f"I understand that " + problem_summary(st.session_state.user_problem) + f"\nIs this correct?"
             else:
                 response_foruser = openai.chat.completions.create(
                 model=model_user,
@@ -329,7 +329,7 @@ def submit_message(prompt1):
 def are_all_properties_populated(obj):
     return all(value for value in vars(obj).values())
 
-st.title("Prototype Thibz Interface")
+st.title("Prototype Thibz BuildPath Interface")
 
 ###### --------- Main program
 if "messages" not in st.session_state:

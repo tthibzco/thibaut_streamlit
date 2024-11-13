@@ -3,9 +3,9 @@ import openai
 from openai import OpenAI
 import pandas as pd
 from pydantic import BaseModel
-import firebase_admin
-from firebase_admin import credentials, firestore
-from datetime import datetime, timezone
+
+
+
 
 
 ###### --------- Classes
@@ -24,26 +24,26 @@ class ActionChosen(BaseModel):
     user_chosen_action_person_to_perform: str
     user_chosen_action_action_to_perform: str
 
-# Initialize Firebase app
-if not firebase_admin._apps:
-    # Extract Firebase credentials from st.secrets
-    firebase_credentials = {
-        "type": st.secrets["firebase"]["type"],
-        "project_id": st.secrets["firebase"]["project_id"],
-        "private_key_id": st.secrets["firebase"]["private_key_id"],
-        # Replace '\\n' with '\n' in private key
-        "private_key": st.secrets["firebase"]["private_key"].replace('\\n', '\n'),
-        "client_email": st.secrets["firebase"]["client_email"],
-        "client_id": st.secrets["firebase"]["client_id"],
-        "auth_uri": st.secrets["firebase"]["auth_uri"],
-        "token_uri": st.secrets["firebase"]["token_uri"],
-        "auth_provider_x509_cert_url": st.secrets["firebase"]["auth_provider_x509_cert_url"],
-        "client_x509_cert_url": st.secrets["firebase"]["client_x509_cert_url"],
-    }
-    cred = credentials.Certificate(firebase_credentials)
-    firebase_admin.initialize_app(cred)
-# Initialize Firestore database
-db = firestore.client()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ###### --------- Functions
@@ -108,10 +108,10 @@ def ini():
         st.session_state["current_action"]=ActionChosen(user_chosen_action_action_to_perform='',user_chosen_action_person_to_perform='')
     
 
-    #opening_prompt="Hello! I am here to help you with an interpersonal problem.\n Can you please describe it?\n"
-    ###### --------- Visuals settings
+    opening_prompt="Hello! I am here to help you with an interpersonal problem.\n Can you please describe it?\n"
     
-    #st.session_state.messages.append({"role": "assistant", "content": opening_prompt})
+    ###### --------- Visuals settings
+    st.session_state.messages.append({"role": "assistant", "content": opening_prompt})
 
 #Function to move to another state
 def transition_state():
@@ -122,6 +122,8 @@ def transition_state():
 # Function for ChatGPT to paraphrase the problem
 def understand_problem(whole_convo, model_user, model_parsing):
 
+    suggest_prompt="Thank you for confirming my understanding. Are you ok with me suggesting a few solutions?"
+    print("\n\nTIBO i =", i1)
     if st.session_state.i1==1:
        chatGPT_setup_understanding = st.secrets["UNDERSTANDING"] 
        temp=whole_convo[-1]
@@ -133,31 +135,40 @@ def understand_problem(whole_convo, model_user, model_parsing):
     try:
         if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1]:
             yesno_eval = openai.beta.chat.completions.parse(
-                model=model_parsing,
-                n=1, #important to keep the number of choices limited to 1
-                messages= st.session_state.yesno_setup + [whole_convo[-1]],
-                response_format=YesNoAnswer
+            model=model_parsing,
+            n=1, #important to keep the number of choices limited to 1
+            messages= st.session_state.yesno_setup + [whole_convo[-1]],
+            response_format=YesNoAnswer
             )
             user_confirms = yesno_eval.choices[0].message
             if user_confirms.parsed:
                 yesno_object=yesno_eval.choices[0].message.parsed
             else:
                 print("Parsing refusal:", resp_parsing.refusal)
+
             st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]=yesno_object.YesNo
             if yesno_object.YesNo:
-                transition_state()
-                return (suggest_solutions(st.session_state.convo1, st.session_state.model_user1, st.session_state.model_parsing1))
+                resp1 = suggest_prompt
+
+
+
+
+
+
+
+
             else:
                 st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] = False
                 resp1 = "Can you please specify what is incorrect in my understanding?"
-                whole_convo.append({'role': 'assistant', 'content': resp1})
-                return resp1
+        
+        
+        
         else:
             response = openai.beta.chat.completions.parse(
-                model=model_parsing,
-                n=1, #important to keep the number of choices limited to 1
-                messages=st.session_state.message_assistant+whole_convo[1:],
-                response_format=ProblemExtraction
+            model=model_parsing,
+            n=1, #important to keep the number of choices limited to 1
+            messages=st.session_state.message_assistant+whole_convo[1:],
+            response_format=ProblemExtraction
             )
             resp_parsing=response.choices[0].message
             if resp_parsing.parsed:
@@ -171,16 +182,18 @@ def understand_problem(whole_convo, model_user, model_parsing):
                 print("Desired Outcomes:", st.session_state.user_problem.desired_outcomes)
             else:
                 print("Parsing refusal:", resp_parsing.refusal)
+        
             if are_all_properties_populated(st.session_state.user_problem):
                 st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1]=True
-                resp1 = f"I understand that " + problem_summary(st.session_state.user_problem) + f"\n\nIs this correct?"
+                resp1 = f"I understand that " + problem_summary(st.session_state.user_problem) + f"Is this correct?"
             else:
                 response_foruser = openai.chat.completions.create(
-                    model=model_user,
-                    n=1, #important to keep the number of choices limited to 1
-                    messages=whole_convo
+                model=model_user,
+                n=1, #important to keep the number of choices limited to 1
+                messages=whole_convo
                 )
                 resp1 = response_foruser.choices[0].message.content
+        
         whole_convo.append({'role':'assistant', 'content':resp1})
         # Return the assistant's response using dot notation
         return resp1
@@ -207,14 +220,12 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
     if st.session_state.i1 == 1:
         chatGPT_setup_suggesting_solutions= st.secrets["SUGGESTING"] 
         
-        #temp = whole_convo[-1]["content"]
-        #whole_convo.pop()
+        temp = whole_convo[-1]["content"]
+        whole_convo.pop()
         whole_convo.append({"role": "system", "content": chatGPT_setup_suggesting_solutions})
         whole_convo.append({"role": "system", "content": "The summary of the problem is " + problem_summary(st.session_state.user_problem)})
-        whole_convo.append({"role": "user", "content": "What is your best suggestion?"})
-        #whole_convo.append({"role": "user", "content": temp + " What is your best suggestion?"})
-        #st.session_state.y= 2
-        st.session_state.y= len(whole_convo) - 1
+        whole_convo.append({"role": "user", "content": temp + " What is your best suggestion?"})
+        st.session_state.y= 2 
 
     try:
         if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1]:
@@ -226,7 +237,7 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
             )
             user_confirms = yesno_eval.choices[0].message
             if user_confirms.parsed:
-                yesno_object=user_confirms.parsed
+                yesno_object=yesno_eval.choices[0].message.parsed
             else:
                 print("Parsing refusal:", resp_parsing.refusal)
 
@@ -253,7 +264,7 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
             )
             resp_parsing=response.choices[0].message
             if resp_parsing.parsed:
-                st.session_state.current_action=resp_parsing.parsed
+                st.session_state.current_action=response.choices[0].message.parsed
             else:
                 print("Parsing refusal:", resp_parsing.refusal)
 
@@ -270,10 +281,10 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
                 resp1 = response_foruser.choices[0].message.content
         
         whole_convo.append({'role':'assistant', 'content':resp1})
-        return resp1
 
     except Exception as e:
         return f"An error occurred: {e}"
+    return resp1
 
 # Function summarizing the action chosen
 def action_summary(action1):
@@ -343,16 +354,13 @@ def prep_exec(whole_convo, model_user, model_parsing):
 
 # Function to handle the user submission
 def submit_message(prompt1):
-    # User's message
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.session_state.convo1.append({"role": "user", "content": prompt})
-    save_message(st.session_state['user_name'], "User", prompt)
 
-    # Assistan's response
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    st.session_state.convo1.append({"role": "user", "content": prompt})
     GPT_response = globals()[st.session_state.user_flow['Stage_user_function'][st.session_state.s1]](st.session_state.convo1, st.session_state.model_user1, st.session_state.model_parsing1)
     st.session_state.messages.append({"role": "assistant", "content": GPT_response})
     st.session_state.i1 += 1
-    save_message(st.session_state['user_name'], "assistant", GPT_response)
 
     if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] and st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]:
         transition_state()
@@ -360,44 +368,16 @@ def submit_message(prompt1):
         # No input from the user
         pass
 
-# Save Message in the DB
-def save_message(user_name, role, content):
-    # Prepare message data
-    message_data = {
-        'user_name': user_name,
-        'role': role,
-        'content': content,
-        'date': datetime.now(timezone.utc)  # Use UTC time
-    }
-    # Add to Firestore
-    db.collection('messages').add(message_data)
-
 # Tests if all properties of an object are populated
 def are_all_properties_populated(obj):
     return all(value for value in vars(obj).values())
 
-st.title("Prototype: BuildPath Assitant")
+st.title("BuildPath prototype")
 
 ###### --------- Main program
 if "messages" not in st.session_state:
     st.session_state["messages"]=[]
     ini()
-
-# Initialize user_name and name_greeted in session_state
-if "user_name" not in st.session_state:
-    st.session_state["user_name"] = ""
-if "name_greeted" not in st.session_state:
-    st.session_state["name_greeted"] = False
-
-if not st.session_state["name_greeted"]:
-    user_name_input = st.text_input("Welcome, can you please tell me your name?")
-    if user_name_input:
-        st.session_state["user_name"] = user_name_input
-        opening_prompt = f"Hello {st.session_state['user_name']}! I am BuildPath, I will help you with an interpersonal problem.\nCan you please describe it?\n"
-        st.session_state.messages.append({"role": "assistant", "content": opening_prompt})
-        st.session_state["name_greeted"] = True
-    else:
-        st.stop()
 
 if prompt := st.chat_input("Type here"):
     submit_message(prompt)

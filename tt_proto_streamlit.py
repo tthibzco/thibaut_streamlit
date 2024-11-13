@@ -3,6 +3,10 @@ import openai
 from openai import OpenAI
 import pandas as pd
 from pydantic import BaseModel
+import firebase_admin
+from firebase_admin import credentials, firestore
+from datetime import datetime
+
 
 ###### --------- Classes
 class ProblemExtraction(BaseModel):
@@ -19,6 +23,28 @@ class YesNoAnswer(BaseModel):
 class ActionChosen(BaseModel):
     user_chosen_action_person_to_perform: str
     user_chosen_action_action_to_perform: str
+
+# Initialize Firebase app
+if not firebase_admin._apps:
+    # Extract Firebase credentials from st.secrets
+    firebase_credentials = {
+        "type": st.secrets["firebase"]["type"],
+        "project_id": st.secrets["firebase"]["project_id"],
+        "private_key_id": st.secrets["firebase"]["private_key_id"],
+        # Replace '\\n' with '\n' in private key
+        "private_key": st.secrets["firebase"]["private_key"].replace('\\n', '\n'),
+        "client_email": st.secrets["firebase"]["client_email"],
+        "client_id": st.secrets["firebase"]["client_id"],
+        "auth_uri": st.secrets["firebase"]["auth_uri"],
+        "token_uri": st.secrets["firebase"]["token_uri"],
+        "auth_provider_x509_cert_url": st.secrets["firebase"]["auth_provider_x509_cert_url"],
+        "client_x509_cert_url": st.secrets["firebase"]["client_x509_cert_url"],
+    }
+    cred = credentials.Certificate(firebase_credentials)
+    firebase_admin.initialize_app(cred)
+# Initialize Firestore database
+db = firestore.client()
+
 
 ###### --------- Functions
 # Initialization function
@@ -82,10 +108,9 @@ def ini():
         st.session_state["current_action"]=ActionChosen(user_chosen_action_action_to_perform='',user_chosen_action_person_to_perform='')
     
 
-    opening_prompt="Hello! I am here to help you with an interpersonal problem.\n Can you please describe it?\n"
-    
+    #opening_prompt="Hello! I am here to help you with an interpersonal problem.\n Can you please describe it?\n"
     ###### --------- Visuals settings
-    st.session_state.messages.append({"role": "assistant", "content": opening_prompt})
+    #st.session_state.messages.append({"role": "assistant", "content": opening_prompt})
 
 #Function to move to another state
 def transition_state():
@@ -122,7 +147,10 @@ def understand_problem(whole_convo, model_user, model_parsing):
 
             st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]=yesno_object.YesNo
             if yesno_object.YesNo:
-                resp1 = suggest_prompt
+                # TM: User confirm the summary; let's proceed to next stage
+                resp1 = suggest_prompt # Old line removed
+                #resp1 = "Great! Let's explore some possible solutions"
+
             else:
                 st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] = False
                 resp1 = "Can you please specify what is incorrect in my understanding?"
@@ -311,13 +339,16 @@ def prep_exec(whole_convo, model_user, model_parsing):
 
 # Function to handle the user submission
 def submit_message(prompt1):
-
+    # User's message
     st.session_state.messages.append({"role": "user", "content": prompt})
-
     st.session_state.convo1.append({"role": "user", "content": prompt})
+    save_message(st.session_state['user_name'], "User", prompt)
+
+    # Assistan's response
     GPT_response = globals()[st.session_state.user_flow['Stage_user_function'][st.session_state.s1]](st.session_state.convo1, st.session_state.model_user1, st.session_state.model_parsing1)
     st.session_state.messages.append({"role": "assistant", "content": GPT_response})
     st.session_state.i1 += 1
+    save_message(st.session_state['user_name'], "assistant", GPT_response)
 
     if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] and st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]:
         transition_state()
@@ -325,16 +356,49 @@ def submit_message(prompt1):
         # No input from the user
         pass
 
+# Save Message in the DB
+def save_message(user_name, role, content):
+    # Prepare message data
+    message_data = {
+        'user_name': user_name,
+        'role': role,
+        'content': content,
+        'date': datetime.utcnow()  # Use UTC time
+    }
+    # Add to Firestore
+    db.collection('messages').add(message_data)
+
+
+
+
 # Tests if all properties of an object are populated
 def are_all_properties_populated(obj):
     return all(value for value in vars(obj).values())
 
-st.title("Prototype Thibz BuildPath Interface")
+st.title("Prototype: BuildPath Assitant")
 
 ###### --------- Main program
 if "messages" not in st.session_state:
     st.session_state["messages"]=[]
     ini()
+
+# Initialize user_name and name_greeted in session_state
+if "user_name" not in st.session_state:
+    st.session_state["user_name"] = ""
+if "name_greeted" not in st.session_state:
+    st.session_state["name_greeted"] = False
+
+# New code to ask for the user's name
+if not st.session_state["name_greeted"]:
+    user_name_input = st.text_input("Welcome, can you please tell me your name?")
+    if user_name_input:
+        st.session_state["user_name"] = user_name_input
+        # Retrieve the opening prompt and replace [USER_NAME] with the actual name
+        opening_prompt = f"Hello {st.session_state['user_name']}! I am BuildPath, I will help you with an interpersonal problem.\nCan you please describe it?\n"
+        st.session_state.messages.append({"role": "assistant", "content": opening_prompt})
+        st.session_state["name_greeted"] = True
+    else:
+        st.stop()
 
 if prompt := st.chat_input("Type here"):
     submit_message(prompt)

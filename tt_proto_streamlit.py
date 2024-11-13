@@ -148,12 +148,20 @@ def understand_problem(whole_convo, model_user, model_parsing):
             st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]=yesno_object.YesNo
             if yesno_object.YesNo:
                 # TM: User confirm the summary; let's proceed to next stage
-                resp1 = suggest_prompt # Old line removed
-                #resp1 = "Great! Let's explore some possible solutions together"
+                #resp1 = suggest_prompt # Old line removed
+                resp1 = "Great! Let's explore some possible solutions together"
+                whole_convo.append({'role': 'assistant', 'content': resp1})
+                transition_state()
+                print("\nTEST TIBO : i = ", st.session_state.i1, "\n\n")
+                return (suggest_solutions(st.session_state.convo1, st.session_state.model_user1, st.session_state.model_parsing1))
+
 
             else:
                 st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] = False
                 resp1 = "Can you please specify what is incorrect in my understanding?"
+                whole_convo.append({'role': 'assistant', 'content': resp1})
+                return resp1
+
         else:
             response = openai.beta.chat.completions.parse(
             model=model_parsing,
@@ -162,7 +170,6 @@ def understand_problem(whole_convo, model_user, model_parsing):
             response_format=ProblemExtraction
             )
             resp_parsing=response.choices[0].message
-
             if resp_parsing.parsed:
                 st.session_state.user_problem=response.choices[0].message.parsed
             else:
@@ -179,9 +186,9 @@ def understand_problem(whole_convo, model_user, model_parsing):
                 )
                 resp1 = response_foruser.choices[0].message.content
         
-        whole_convo.append({'role':'assistant', 'content':resp1})
-        # Return the assistant's response using dot notation
-        return resp1
+            whole_convo.append({'role':'assistant', 'content':resp1})
+            # Return the assistant's response using dot notation
+            return resp1
     except Exception as e:
         return f"An error occurred: {e}"
 
@@ -205,12 +212,14 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
     if st.session_state.i1 == 1:
         chatGPT_setup_suggesting_solutions= st.secrets["SUGGESTING"] 
         
-        temp = whole_convo[-1]["content"]
-        whole_convo.pop()
+        #temp = whole_convo[-1]["content"]
+        #whole_convo.pop()
         whole_convo.append({"role": "system", "content": chatGPT_setup_suggesting_solutions})
         whole_convo.append({"role": "system", "content": "The summary of the problem is " + problem_summary(st.session_state.user_problem)})
-        whole_convo.append({"role": "user", "content": temp + " What is your best suggestion?"})
-        st.session_state.y= 2 
+        whole_convo.append({"role": "user", "content": "What is your best suggestion?"})
+        #whole_convo.append({"role": "user", "content": temp + " What is your best suggestion?"})
+        #st.session_state.y= 2
+        st.session_state.y= len(whole_convo) - 1
 
     try:
         if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1]:
@@ -222,7 +231,7 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
             )
             user_confirms = yesno_eval.choices[0].message
             if user_confirms.parsed:
-                yesno_object=yesno_eval.choices[0].message.parsed
+                yesno_object=user_confirms.parsed
             else:
                 print("Parsing refusal:", resp_parsing.refusal)
 
@@ -249,7 +258,7 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
             )
             resp_parsing=response.choices[0].message
             if resp_parsing.parsed:
-                st.session_state.current_action=response.choices[0].message.parsed
+                st.session_state.current_action=resp_parsing.parsed
             else:
                 print("Parsing refusal:", resp_parsing.refusal)
 
@@ -266,10 +275,10 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
                 resp1 = response_foruser.choices[0].message.content
         
         whole_convo.append({'role':'assistant', 'content':resp1})
+        return resp1
 
     except Exception as e:
         return f"An error occurred: {e}"
-    return resp1
 
 # Function summarizing the action chosen
 def action_summary(action1):

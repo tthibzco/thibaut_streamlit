@@ -5,7 +5,7 @@ import pandas as pd
 from pydantic import BaseModel
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 ###### --------- Classes
@@ -186,9 +186,9 @@ def understand_problem(whole_convo, model_user, model_parsing):
                 )
                 resp1 = response_foruser.choices[0].message.content
         
-            whole_convo.append({'role':'assistant', 'content':resp1})
+        whole_convo.append({'role':'assistant', 'content':resp1})
             # Return the assistant's response using dot notation
-            return resp1
+        return resp1
     except Exception as e:
         return f"An error occurred: {e}"
 
@@ -372,7 +372,7 @@ def save_message(user_name, role, content):
         'user_name': user_name,
         'role': role,
         'content': content,
-        'date': datetime.utcnow()  # Use UTC time
+        'date': datetime.now(timezone.utc)  # Use UTC time
     }
     # Add to Firestore
     db.collection('messages').add(message_data)

@@ -149,7 +149,7 @@ def understand_problem(whole_convo, model_user, model_parsing):
             if yesno_object.YesNo:
                 # TM: User confirm the summary; let's proceed to next stage
                 resp1 = suggest_prompt # Old line removed
-                #resp1 = "Great! Let's explore some possible solutions"
+                #resp1 = "Great! Let's explore some possible solutions together"
 
             else:
                 st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] = False

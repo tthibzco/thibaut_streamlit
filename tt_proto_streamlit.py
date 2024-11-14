@@ -167,13 +167,6 @@ def understand_problem(whole_convo, model_user, model_parsing):
             resp_parsing=response.choices[0].message
             if resp_parsing.parsed:
                 st.session_state.user_problem=response.choices[0].message.parsed
-                print("\nParsed successfully:")
-                print("Person2:", st.session_state.user_problem.person2)
-                print("Relationship:", st.session_state.user_problem.relationship)
-                print("Issues:", st.session_state.user_problem.issues)
-                print("Context:", st.session_state.user_problem.context)
-                print("Causes:", st.session_state.user_problem.causes)
-                print("Desired Outcomes:", st.session_state.user_problem.desired_outcomes)
             else:
                 print("Parsing refusal:", resp_parsing.refusal)
             if are_all_properties_populated(st.session_state.user_problem):

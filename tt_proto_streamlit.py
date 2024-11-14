@@ -51,7 +51,7 @@ db = firestore.client()
 def ini():
     
     ###### --------- Global
-    global suggest_prompt, propose_prompt
+    #global suggest_prompt, propose_prompt
     
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     code_assistant_setup = st.secrets["CODE_ASSISTANT_SETUP"] 
@@ -82,6 +82,7 @@ def ini():
         st.session_state["user_flow"] = pd.DataFrame(general_flow)
     st.session_state["user_flow"].index = pd.RangeIndex(start=1, stop=len(st.session_state["user_flow"]) + 1, step=1)
     st.session_state["user_flow"]['Stage_chat'][st.session_state["s1"]]=st.session_state["convo1"]
+    
 
     if "model_user1" not in st.session_state:
         st.session_state["model_user1"]=st.secrets["MODEL_USER1"]
@@ -145,6 +146,10 @@ def understand_problem(whole_convo, model_user, model_parsing):
                 print("Parsing refusal:", resp_parsing.refusal)
             st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]=yesno_object.YesNo
             if yesno_object.YesNo:
+                resp1 = "Thank you for confirming. Let's explore some possible solutions together."
+                whole_convo.append({'role': 'assistant', 'content': resp1})
+                st.session_state.messages.append({'role': 'assistant', 'content': resp1})
+                save_message(st.session_state['user_name'], "assistant", resp1)
                 transition_state()
                 return (suggest_solutions(st.session_state.convo1, st.session_state.model_user1, st.session_state.model_parsing1))
             else:
@@ -202,27 +207,22 @@ def problem_summary(problem: ProblemExtraction):
 # Function used to suggest actions to the user
 def suggest_solutions(whole_convo, model_user, model_parsing):
     
-    propose_prompt="Thank you for choosing this action. Do you want to go in the details of it?"
+    #propose_prompt="Thank you for choosing this action. Do you want to go in the details of it?"
 
     if st.session_state.i1 == 1:
         chatGPT_setup_suggesting_solutions= st.secrets["SUGGESTING"] 
-        
-        #temp = whole_convo[-1]["content"]
-        #whole_convo.pop()
         whole_convo.append({"role": "system", "content": chatGPT_setup_suggesting_solutions})
         whole_convo.append({"role": "system", "content": "The summary of the problem is " + problem_summary(st.session_state.user_problem)})
         whole_convo.append({"role": "user", "content": "What is your best suggestion?"})
-        #whole_convo.append({"role": "user", "content": temp + " What is your best suggestion?"})
-        #st.session_state.y= 2
         st.session_state.y= len(whole_convo) - 1
 
     try:
         if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1]:
             yesno_eval = openai.beta.chat.completions.parse(
-            model=model_parsing,
-            n=1, #important to keep the number of choices limited to 1
-            messages= st.session_state.yesno_setup + [whole_convo[-1]],
-            response_format=YesNoAnswer
+                model=model_parsing,
+                n=1, #important to keep the number of choices limited to 1
+                messages= st.session_state.yesno_setup + [whole_convo[-1]],
+                response_format=YesNoAnswer
             )
             user_confirms = yesno_eval.choices[0].message
             if user_confirms.parsed:
@@ -232,24 +232,31 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
 
             st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]=yesno_object.YesNo
             if yesno_object.YesNo:
-                resp1 = propose_prompt
+                resp1 = "Great! Let's proceed to prepare the execution of this action."
+                whole_convo.append({'role': 'assistant', 'content': resp1})
+                st.session_state.messages.append({'role': 'assistant', 'content': resp1})
+                save_message(st.session_state['user_name'], "assistant", resp1)
+                transition_state()
+                return prep_exec(st.session_state.convo1, st.session_state.model_user1, st.session_state.model_parsing1)
             else:
                 st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] = False
                 st.session_state.current_action.user_chosen_action_person_to_perform =''
                 st.session_state.current_action.user_chosen_action_action_to_perform =''
                 st.session_state.y = len(whole_convo)
                 response_foruser = openai.chat.completions.create(
-                model=model_user,
-                n=1, #important to keep the number of choices limited to 1
-                messages=whole_convo
+                    model=model_user,
+                    n=1, #important to keep the number of choices limited to 1
+                    messages=whole_convo
                 )
                 resp1 = response_foruser.choices[0].message.content
+                whole_convo.append({'role':'assistant', 'content':resp1})
+                return resp1
         else:
             response = openai.beta.chat.completions.parse(
-            model=model_parsing,
-            n=1, #important to keep the number of choices limited to 1
-            messages=st.session_state.message_assistant2+whole_convo[st.session_state.y:], #Original
-            response_format=ActionChosen
+                model=model_parsing,
+                n=1, #important to keep the number of choices limited to 1
+                messages=st.session_state.message_assistant2+whole_convo[st.session_state.y:], #Original
+                response_format=ActionChosen
             )
             resp_parsing=response.choices[0].message
             if resp_parsing.parsed:
@@ -263,9 +270,9 @@ def suggest_solutions(whole_convo, model_user, model_parsing):
 
             else:
                 response_foruser = openai.chat.completions.create(
-                model=model_user,
-                n=1, #important to keep the number of choices limited to 1
-                messages=whole_convo
+                    model=model_user,
+                    n=1, #important to keep the number of choices limited to 1
+                    messages=whole_convo
                 )
                 resp1 = response_foruser.choices[0].message.content
         
@@ -284,21 +291,19 @@ def action_summary(action1):
 def prep_exec(whole_convo, model_user, model_parsing):
 
     if st.session_state.i1 == 1:
-        temp = whole_convo[-1]["content"]
-        whole_convo.pop()
+        #temp = whole_convo[-1]["content"]
+        #whole_convo.pop()
 
         if st.session_state.current_action.user_chosen_action_person_to_perform=='me':
             chatGPT_setup_prep_execution= st.secrets["EXECUTING1"] 
-        else:
-            chatGPT_setup_prep_execution= st.secrets["EXECUTING2"] 
-        
-        whole_convo.append({"role": "system", "content": chatGPT_setup_prep_execution})
-        if st.session_state.current_action.user_chosen_action_person_to_perform=='me':
+            whole_convo.append({"role": "system", "content": chatGPT_setup_prep_execution})
             whole_convo.append({"role": "system", "content": "The problem is " + problem_summary(st.session_state.user_problem)})
             whole_convo.append({"role": "user", "content": "What email are you thinking you will send?"})
         else:
+            chatGPT_setup_prep_execution= st.secrets["EXECUTING2"] 
+            whole_convo.append({"role": "system", "content": chatGPT_setup_prep_execution})
             whole_convo.append({"role": "system", "content": "The action is " + action_summary(st.session_state.current_action)})
-            whole_convo.append({"role": "user", "content": temp + ". How can this be done?"})
+            whole_convo.append({"role": "user", "content": "How can this be done?"})
         try:
             response_foruser = openai.chat.completions.create(
                 model=model_user,
@@ -306,6 +311,8 @@ def prep_exec(whole_convo, model_user, model_parsing):
                 messages=whole_convo
                 )
             resp1 = response_foruser.choices[0].message.content
+            whole_convo.append({'role':'assistant', 'content':resp1})
+            return resp1
         except Exception as e:
             return f"An error occurred: {e}"
     else:
@@ -314,7 +321,7 @@ def prep_exec(whole_convo, model_user, model_parsing):
             n=1, #important to keep the number of choices limited to 1
             messages= st.session_state.yesno_setup + [whole_convo[-1]],
             response_format=YesNoAnswer
-            )
+        )
         user_confirms = yesno_eval.choices[0].message
         if user_confirms.parsed:
             yesno_object=yesno_eval.choices[0].message.parsed
@@ -333,12 +340,11 @@ def prep_exec(whole_convo, model_user, model_parsing):
                     model=model_user,
                     n=1, #important to keep the number of choices limited to 1
                     messages=whole_convo
-                    )
+                )
                 resp1 = response_foruser.choices[0].message.content
             except Exception as e:
                 return f"An error occurred: {e}"
         whole_convo.append({'role':'assistant', 'content':resp1})
-    
     return resp1
 
 # Function to handle the user submission
@@ -350,15 +356,17 @@ def submit_message(prompt1):
 
     # Assistan's response
     GPT_response = globals()[st.session_state.user_flow['Stage_user_function'][st.session_state.s1]](st.session_state.convo1, st.session_state.model_user1, st.session_state.model_parsing1)
-    st.session_state.messages.append({"role": "assistant", "content": GPT_response})
+    if GPT_response:
+        st.session_state.messages.append({"role": "assistant", "content": GPT_response})
+        save_message(st.session_state['user_name'], "assistant", GPT_response)
     st.session_state.i1 += 1
-    save_message(st.session_state['user_name'], "assistant", GPT_response)
 
-    if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] and st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]:
-        transition_state()
-    else:
+
+    #if st.session_state.user_flow['Stage_bot_validation'][st.session_state.s1] and st.session_state.user_flow['Stage_user_validation'][st.session_state.s1]:
+    #    transition_state()
+    #else:
         # No input from the user
-        pass
+    #    pass
 
 # Save Message in the DB
 def save_message(user_name, role, content):

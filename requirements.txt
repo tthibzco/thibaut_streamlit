@@ -1,3 +1,4 @@
 openai
 pydantic
 firebase_admin
+langid

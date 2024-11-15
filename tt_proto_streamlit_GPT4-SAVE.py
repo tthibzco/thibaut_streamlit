@@ -124,8 +124,6 @@ def transition_state():
 def understand_problem(whole_convo, model_user, model_parsing):
 
     if st.session_state.i1==1:
-       print(whole_convo[-1]['content'])
-       
        chatGPT_setup_understanding = st.secrets["UNDERSTANDING"] 
        temp=whole_convo[-1]
        whole_convo.pop()
